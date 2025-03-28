@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Management System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 25px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 25px;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 16px;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        .btn-register {
+            background-color: #2196F3;
+        }
+
+        .btn-register:hover {
+            background-color: #1976D2;
+        }
+
+        .btn-attendance {
+            background-color: #FF9800;
+        }
+
+        .btn-attendance:hover {
+            background-color: #F57C00;
+        }
+
+        .btn-view {
+            background-color: #9C27B0;
+        }
+
+        .btn-view:hover {
+            background-color: #7B1FA2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Student Management System</h2>
+        
+        <button class="btn btn-register" onclick="navigateToRegister()">
+            📝 Register New Student
+        </button>
+        
+        <button class="btn btn-attendance" onclick="navigateToAttendance()">
+            📋 Take Attendance
+        </button>
+        
+        <button class="btn btn-view" onclick="navigateToStudentView()">
+            👥 View Attendance
+        </button>
+    </div>
+
+    <script>
+        function navigateToRegister() {
+            window.location.href = 'register.html';
+        }
+
+        function navigateToAttendance() {
+            window.location.href ='take-attendance.html';
+        }
+
+        function navigateToStudentView() {
+            window.location.href = 'get-attendance.html';
+        }
+    </script>
+</body>
+</html>
