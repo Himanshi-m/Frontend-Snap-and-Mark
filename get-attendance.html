@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 25px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary { background-color: #FF9800; }
+        .btn-primary:hover { background-color: #F57C00; }
+        
+        .btn-secondary { background-color: #9C27B0; }
+        .btn-secondary:hover { background-color: #7B1FA2; }
+
+        .table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        .table th, .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .table th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Attendance Tracker</h2>
+        <input type="text" id="studentId" class="input-field" placeholder="Enter Student ID">
+        <button class="btn btn-primary" onclick="fetchAttendance()">📋 Get Attendance</button>
+        <p class="error" id="errorMessage"></p>
+
+        <table class="table" id="attendanceTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Taken On</th>
+                    <th>Time Stamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="3">Enter Student ID and click "Get Attendance"</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>Attendance Percentage:</strong> <span id="attendancePercentage">--</span>%</p>
+        <button class="btn btn-secondary" onclick="goHome()">🏠 Back to Home</button>
+    </div>
+
+    <script>
+        function fetchAttendance() {
+            const studentId = document.getElementById("studentId").value.trim();
+            const apiUrl = "http://34.41.20.145:8000/get_attendance";
+            const authToken = "Bearer 7d9967b499a88cebb828189a92edbcc8908169ee010bb70fc21339f54ac8";
+
+            if (!studentId) {
+                document.getElementById("errorMessage").textContent = "Please enter a valid Student ID.";
+                return;
+            }
+
+            document.getElementById("errorMessage").textContent = "";
+            document.getElementById("attendanceTable").innerHTML = "";
+            document.getElementById("attendancePercentage").textContent = "--";
+
+            fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": authToken
+                },
+                body: JSON.stringify({ "student_id": studentId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!Array.isArray(data) || data.length < 2) {
+                    throw new Error("Invalid API response format.");
+                }
+                
+                const attendanceRecords = data[0];
+                const attendancePercentage = data[1];
+                const tableBody = document.getElementById("attendanceTable");
+                tableBody.innerHTML = "";
+
+                if (attendanceRecords.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="3">No records found</td></tr>`;
+                } else {
+                    attendanceRecords.forEach((record, index) => {
+                        const row = `<tr>
+                            <td>${index + 1}</td>
+                            <td>${new Date(record.taken_on).toLocaleString()}</td>
+                            <td>${new Date(record.time_stamp).toLocaleString()}</td>
+                        </tr>`;
+                        tableBody.innerHTML += row;
+                    });
+                }
+                document.getElementById("attendancePercentage").textContent = attendancePercentage.toFixed(2);
+            })
+            .catch(error => {
+                document.getElementById("errorMessage").textContent = "Error fetching data: " + error.message;
+                document.getElementById("attendanceTable").innerHTML = `<tr><td colspan="3">Failed to load data</td></tr>`;
+            });
+        }
+
+        function goHome() {
+            window.location.href = "index.html";
+        }
+    </script>
+</body>
+</html>
