@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 25px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .video-container {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            background: #f0f0f0;
+            min-height: 350px;
+        }
+        video, canvas {
+            width: 100%;
+            max-height: 350px;
+            object-fit: cover;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .btn {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        .btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #capturedImage {
+            max-width: 100%;
+            margin: 10px 0;
+            display: none;
+        }
+        #status {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 350px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Smart Attendance System</h2>
+        
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div>
+            <button id="startCameraBtn" class="btn" onclick="startCamera()">Start Camera</button>
+            <button id="captureBtn" class="btn" disabled onclick="captureImage()">Capture Image</button>
+            <button id="checkFaceBtn" class="btn" disabled onclick="checkFace()">Check Face</button>
+        </div>
+
+        <img id="capturedImage" alt="Captured Face">
+        
+        <p id="status"></p>
+
+        <div id="studentInfo" style="margin-top: 10px;"></div>
+
+        <button id="submitBtn" class="btn" disabled onclick="submitAttendance()">Submit Attendance</button>
+        <!-- <div id="studentInfo" style="margin-top: 10px;"></div> -->
+        <button class="btn"  onclick="location.href='index.html'">Back to Home</button>
+
+    </div>
+
+    <!-- Modals for confirmation and results -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Attendance</h3>
+            <p>Are you sure you want to mark attendance?</p>
+            <button onclick="confirmAttendance()">Confirm</button>
+            <button onclick="closeModal('confirmModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <h3 id="resultTitle"></h3>
+            <p id="resultMessage"></p>
+            <button onclick="closeModal('resultModal')">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const checkFaceBtn = document.getElementById('checkFaceBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const capturedImage = document.getElementById('capturedImage');
+        const statusText = document.getElementById('status');
+        const studentInfoDiv = document.getElementById('studentInfo');
+
+        // Global variables
+        let currentStream = null;
+        let detectedStudent = null;
+
+        // Camera Initialization
+        async function startCamera() {
+            // Stop any existing camera stream
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            try {
+                // Request camera access
+                currentStream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'user',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+
+                // Set video source and enable capture
+                video.srcObject = currentStream;
+                
+                // Wait for video to be ready
+                video.onloadedmetadata = () => {
+                    video.play();
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    // Enable capture button
+                    captureBtn.disabled = false;
+                    startCameraBtn.disabled = true;
+                    statusText.textContent = "Camera started. Ready to capture.";
+
+                    // Start face detection
+                    startFaceDetection();
+                };
+            } catch (err) {
+                console.error("Camera access error:", err);
+                statusText.textContent = `Camera error: ${err.message}`;
+                startCameraBtn.disabled = false;
+            }
+        }
+
+        // Face Detection
+        async function startFaceDetection() {
+            // Load face-api models
+            await faceapi.nets.tinyFaceDetector.loadFromUri('/weights');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('/weights');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('/weights');
+
+            // Continuous face detection
+            const detectFaces = async () => {
+                try {
+                    const detections = await faceapi.detectAllFaces(
+                        video, 
+                        new faceapi.TinyFaceDetectorOptions()
+                    ).withFaceLandmarks();
+
+                    if (detections.length > 0) {
+                        statusText.textContent = "Face detected! Ready to capture.";
+                        captureBtn.disabled = false;
+                    } else {
+                        statusText.textContent = "No face detected. Position your face.";
+                        captureBtn.disabled = true;
+                    }
+                } catch (error) {
+                    console.error("Face detection error:", error);
+                }
+            };
+
+            // Run detection every second
+            setInterval(detectFaces, 1000);
+        }
+
+        // Capture Image
+        function captureImage() {
+            // Draw current video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Show captured image
+            capturedImage.src = canvas.toDataURL('image/png');
+            capturedImage.style.display = 'block';
+
+            // Enable face check
+            checkFaceBtn.disabled = false;
+            statusText.textContent = "Image captured. Check face now.";
+        }
+
+        // Check Face
+        async function checkFace() {
+            statusText.textContent = "Checking face...";
+            
+            // Prepare image for upload
+            const imageBlob = dataURItoBlob(capturedImage.src);
+            const formData = new FormData();
+            formData.append('face_image', imageBlob, 'captured_face.png');
+
+            try {
+                const response = await fetch('http://34.41.20.145:8000/check_face', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer 7d9967b499a88cebb828189a92edbcc8908169ee010bb70fc21339f54ac8'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.length > 0) {
+                    // Store detected student
+                    detectedStudent = result[0].person;
+
+                    // Display student info
+                    studentInfoDiv.innerHTML = `
+                        <p>Name: ${detectedStudent.name}</p>
+                        <p>Student ID: ${detectedStudent.student_id}</p>
+                        <p>Search Score: ${detectedStudent.search_score.toFixed(2)}</p>
+                    `;
+
+                    statusText.textContent = "Face matched successfully!";
+                    submitBtn.disabled = false;
+                    checkFaceBtn.disabled = true;
+                } else {
+                    statusText.textContent = "Face not recognized.";
+                    submitBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error("Face check error:", error);
+                statusText.textContent = "Network error. Try again.";
+            }
+        }
+
+        // Submit Attendance
+        function submitAttendance() {
+            if (!detectedStudent) {
+                alert("No student detected. Please check face first.");
+                return;
+            }
+
+            // Show confirmation modal
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        // Confirm Attendance
+        async function confirmAttendance() {
+            // Close confirmation modal
+            closeModal('confirmModal');
+
+            try {
+                const response = await fetch('http://34.41.20.145:8000/add_attendance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer 7d9967b499a88cebb828189a92edbcc8908169ee010bb70fc21339f54ac8'
+                    },
+                    body: JSON.stringify({
+                        students: [{
+                            student_id: detectedStudent.student_id,
+                            time_stamp: new Date().toISOString()
+                        }]
+                    })
+                });
+
+                // Show result modal
+                const resultModal = document.getElementById('resultModal');
+                const resultTitle = document.getElementById('resultTitle');
+                const resultMessage = document.getElementById('resultMessage');
+
+                if (response.ok) {
+                    resultTitle.textContent = "Attendance Successful";
+                    resultMessage.textContent = `Attendance marked for ${detectedStudent.name} (${detectedStudent.student_id})`;
+                } else {
+                    resultTitle.textContent = "Attendance Failed";
+                    resultMessage.textContent = "Unable to mark attendance. Please try again.";
+                }
+
+                resultModal.style.display = 'flex';
+
+                // Reset UI
+                resetUI();
+            } catch (error) {
+                console.error("Attendance submission error:", error);
+            }
+        }
+
+        // Close Modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Reset UI
+        function resetUI() {
+            // Reset variables
+            detectedStudent = null;
+
+            // Reset UI elements
+            capturedImage.style.display = 'none';
+            studentInfoDiv.innerHTML = '';
+            statusText.textContent = '';
+
+            // Reset buttons
+            startCameraBtn.disabled = false;
+            captureBtn.disabled = true;
+            checkFaceBtn.disabled = true;
+            submitBtn.disabled = true;
+
+            // Stop current camera stream
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+        }
+
+        // Utility: Convert Data URI to Blob
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            // Disable capture and check buttons initially
+            captureBtn.disabled = true;
+            checkFaceBtn.disabled = true;
+            submitBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>
