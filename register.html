@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Student</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 25px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            background: #f0f0f0;
+        }
+
+        #camera, canvas {
+            width: 100%;
+            max-height: 350px;
+            object-fit: cover;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        .back-btn {
+            background-color: #2196F3;
+            margin-top: 10px;
+        }
+
+        .back-btn:hover {
+            background-color: #1976D2;
+        }
+
+        .preview {
+            margin-top: 15px;
+        }
+
+        .preview img {
+            max-width: 100%;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status-message {
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Register Student</h2>
+        <form id="registerForm">
+            <input type="text" id="studentName" placeholder="Enter Student Name" required>
+            <input type="text" id="studentID" placeholder="Enter Student ID" required>
+
+            <div class="video-container">
+                <video id="camera" autoplay></video>
+                <canvas id="faceCanvas"></canvas>
+            </div>
+
+            <button type="button" class="btn" onclick="captureImage()">📸 Take Picture</button>
+            
+            <div class="preview">
+                <canvas id="canvas" style="display:none;"></canvas>
+                <img id="capturedImage" alt="Captured Image">
+            </div>
+            
+            <button type="submit" class="btn">✅ Register</button>
+            <button type="button" class="btn back-btn" onclick="goBack()">🏠 Back to Home</button>
+
+            <p id="statusMessage" class="status-message"></p>
+        </form>
+    </div>
+
+    <script>
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('canvas');
+        const faceCanvas = document.getElementById('faceCanvas');
+        const capturedImage = document.getElementById('capturedImage');
+        const ctx = canvas.getContext('2d');
+        const faceCtx = faceCanvas.getContext('2d');
+        const statusMessage = document.getElementById('statusMessage');
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                video.srcObject = stream;
+                video.addEventListener('loadedmetadata', () => {
+                    faceCanvas.width = video.videoWidth;
+                    faceCanvas.height = video.videoHeight;
+                });
+            } catch (err) {
+                console.error("Camera access denied", err);
+                statusMessage.textContent = "❌ Camera access denied!";
+                statusMessage.style.color = "red";
+            }
+        }
+
+        async function loadFaceAPI() {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
+            detectFaces();
+        }
+
+        async function detectFaces() {
+            setInterval(async () => {
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+                faceCtx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+
+                detections.forEach(det => {
+                    const { x, y, width, height } = det.box;
+                    faceCtx.strokeStyle = "#4CAF50";
+                    faceCtx.lineWidth = 3;
+                    faceCtx.strokeRect(x, y, width, height);
+                });
+            }, 100);
+        }
+
+        async function captureImage() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            capturedImage.src = canvas.toDataURL('image/png');
+            capturedImage.style.display = 'block';
+            statusMessage.textContent = "📸 Image Captured! Ready to Register";
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            statusMessage.textContent = "Processing... ⏳";
+            statusMessage.style.color = "#007bff";
+
+            const name = document.getElementById('studentName').value;
+            const id = document.getElementById('studentID').value;
+
+            if (!name || !id || capturedImage.src === "") {
+                statusMessage.textContent = "⚠️ Please enter all details and capture an image!";
+                statusMessage.style.color = "red";
+                return;
+            }
+
+            try {
+                const blob = await fetch(capturedImage.src).then(res => res.blob());
+                const file = new File([blob], "captured_face.png", { type: "image/png" });
+
+                const formData = new FormData();
+                formData.append("student_id", id);
+                formData.append("name", name);
+                formData.append("face_image", file);
+
+                const response = await fetch("http://34.41.20.145:8000/register_face", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer 7d9967b499a88cebb828189a92edbcc8908169ee010bb70fc21339f54ac8"
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusMessage.textContent = "✅ Student Registered Successfully!";
+                    statusMessage.style.color = "#4CAF50";
+                } else {
+                    statusMessage.textContent = `⚠️ Error: ${result.message || "Failed to register."}`;
+                    statusMessage.style.color = "red";
+                }
+            } catch (error) {
+                console.error("API Error:", error);
+                statusMessage.textContent = "⚠️ Network Error! Please try again.";
+                statusMessage.style.color = "red";
+            }
+        });
+
+        function goBack() {
+            window.location.href = 'index.html';
+        }
+
+        startCamera();
+        loadFaceAPI();
+    </script>
+</body>
+</html>
